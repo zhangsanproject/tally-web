@@ -77,7 +77,6 @@ include "20*/*.bean"
 
 - 进入 GitHub -> **Settings** -> **Developer settings** -> **Personal access tokens** -> **Fine-grained tokens**。
 - 点击 **Generate new token**。
-Contents
 - 选择Only select repositories，选择新建的仓库，
 - 点击Add permissions, 添加Contents权限，然后将Contents设置为Read and write
 - 生成并复制该 Token（妥善保存，离开页面后将不再显示）。
