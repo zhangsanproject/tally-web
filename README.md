@@ -96,19 +96,128 @@ include "20*/*.bean"
 
 ## 三、部署指南（Cloudflare Worker）
 
-本项目前后端已高度整合为一个完整的 Cloudflare Worker 脚本。
+项目源码托管在 GitHub（[zhangsanproject/tally-web](https://github.com/zhangsanproject/tally-web)）。Cloudflare 提供了**直接连接 GitHub 仓库**的部署方式，无需本地安装任何工具，源码更新后还会自动重新部署。
 
-1. 登录 Cloudflare Dashboard。
-2. 在左侧菜单栏选择 **Workers & Pages** -> **Create application** -> **Create Worker**。
-3. 输入一个 Worker 名称（例如 `beanflux`），点击 **Deploy**。
-4. 部署完成后，点击 **Edit code**，将合并后的项目 JavaScript 代码完整复制并覆盖 `worker.js`，点击右上角 **Save and deploy**。
-5. 返回 Worker 主页，进入 **Settings** -> **Variables**。
-6. 点击 **Add variable**，依次填入 `GITHUB_OWNER`、`GITHUB_REPO`、`GITHUB_TOKEN` 和 `SECRET_TOKEN`（建议将 Token 类变量设为 Encrypt 加密）。
-7. 配置完成后，访问 Cloudflare 分配的默认域名（或绑定自定义域名），输入你在环境变量中设置的 `SECRET_TOKEN` 即可解锁并开始记账。
+### 1. Fork 本项目到你的 GitHub
+
+1. 打开 [zhangsanproject/tally-web](https://github.com/zhangsanproject/tally-web)。
+2. 点击右上角 **Fork**，将仓库复制到你自己的 GitHub 账号下。
+
+> 💡 Fork 后，你得到的是自己账号下的 `tally-web` 仓库（例如 `https://github.com/<你的用户名>/tally-web`）。这样既方便 Cloudflare 授权访问，也便于你保存自定义配置。
+
+### 2. 在 Cloudflare 中连接 GitHub 仓库
+
+1. 登录 [Cloudflare Dashboard](https://dash.cloudflare.com)。
+2. 在左侧菜单栏选择 **Workers & Pages** -> **Create application**。
+3. 选择 **Worker**，点击 **Next**。
+4. 在代码来源步骤中，选择 **Connect to Git**。
+5. 首次使用需要授权：点击 **Connect GitHub**，选择你的账号并授权 Cloudflare 访问你 Fork 的 `tally-web` 仓库。
+6. 选择 Fork 后的 `tally-web` 仓库，分支选择 `main`。
+7. Cloudflare 会自动识别仓库中的 `wrangler.toml`（项目名称、入口 `worker.js`、`compatibility_date` 等），无需额外修改。
+8. 点击 **Deploy**，等待构建完成。
+
+部署成功后，Cloudflare 会分配一个默认访问地址，例如：
+
+```
+https://tally-web.<你的子域>.workers.dev
+```
+
+### 3. 配置环境变量
+
+部署完成后，回到 Cloudflare Dashboard，进入刚刚创建的 Worker -> **Settings** -> **Variables and Secrets** -> **Add variable**，依次添加以下 4 个环境变量：
+
+| 变量名 | 类型 | 说明 |
+|---|---|---|
+| `GITHUB_OWNER` | 文本 | 你的 **记账仓库** 所属的 GitHub 用户名或组织名（见第一节） |
+| `GITHUB_REPO` | 文本 | 你的 **记账仓库** 名称（例如 `beancount-ledger`） |
+| `GITHUB_TOKEN` | Secret | GitHub Personal Access Token（需具备仓库 Contents 读写权限） |
+| `SECRET_TOKEN` | Secret | 自定义的网页访问密钥（用于解锁记账页面） |
+
+> 💡 提示：`GITHUB_OWNER` / `GITHUB_REPO` 指向的是**你自己的记账数据仓库**（第一节创建的 `beancount-ledger`），而不是本项目的源码仓库。添加 `GITHUB_TOKEN` 和 `SECRET_TOKEN` 时，请将 Type 选择为 **Secret**，Cloudflare 会加密存储，不会明文展示。
+
+配置完成后，点击 **Save and deploy** 使变量生效。
+
+### 4. 开始使用
+
+在浏览器中打开 Worker 的访问地址，输入你设置的 `SECRET_TOKEN` 解锁页面，即可开始记账。
+
+如需绑定自定义域名，可在 Worker 的 **Settings** -> **Domains & Routes** 中添加 Custom Domain。
+
+### 5. 后续自动部署
+
+由于使用了 GitHub 集成，只要你对 Fork 后的仓库进行 `git push`（例如在 GitHub 网页上直接编辑文件、或合并 Pull Request），Cloudflare 都会**自动检测到代码变更并重新部署**，无需任何手动操作。
+
+当本项目（`zhangsanproject/tally-web`）有官方更新时，只需在 GitHub 上同步一次上游（Sync fork），你的 Worker 就会自动更新到最新版本。
 
 ---
 
-## 四、进阶：配置 GitHub Actions 自动校验
+## 四、新手建账指南（第一次使用 Beancount 如何录入期初余额）
+
+当你刚开始接触并使用 Beancount 记账时，面临的第一个问题就是："我手机里、银行卡里的存量资金，以及花呗、信用卡里欠的钱，到底该怎么录入系统？"这个过程在复式记账中叫做"建账"或"期初初始化"。以下是第一次使用时具体的记录步骤和方法：
+
+### 1. 数清你的"家底"（盘点资产与负债）
+
+在动手写代码前，先打开你的各大账户，统计出一个确切的时间点（例如 `2026-07-28`）你的实际财务状况：
+
+- **资产类（正数）**：
+  - 支付宝余额：例如 5,000.00 元
+  - 微信零钱：例如 2,000.00 元
+  - 银行卡存款：例如 10,000.00 元
+- **负债类（未还清的账单）**：
+  - 支付宝花呗：例如 1,000.00 元
+  - 信用卡欠款：例如 2,000.00 元
+
+### 2. 确保账户已经在 `accounts.bean` 中声明
+
+在正式写期初交易之前，确保这些账户已经在你的账户定义文件（`accounts.bean`）里被 `open` 过。例如：
+
+```bean
+2026-07-28 open Assets:CN:Alipay
+2026-07-28 open Assets:CN:WeChat
+2026-07-28 open Assets:CN:Bank
+2026-07-28 open Liabilities:CN:Huabei
+2026-07-28 open Liabilities:CN:CreditCard
+2026-07-28 open Equity:Opening-Balances
+```
+
+### 3. 编写第一笔期初交易（核心模板）
+
+在你的第一个月度账本文件（例如 `2026-07.bean`）的最顶部，写下你的第一笔交易。你可以直接复制并修改以下模板：
+
+```bean
+2026-07-28 * "初始建账" "记录第一次使用时的期初资产与负债"
+  Assets:CN:Alipay           5000.00 CNY
+  Assets:CN:WeChat            2000.00 CNY
+  Assets:CN:Bank             10000.00 CNY
+  Liabilities:CN:Huabei      -1000.00 CNY
+  Liabilities:CN:CreditCard  -2000.00 CNY
+  Equity:Opening-Balances   -14000.00 CNY
+```
+
+### 4. 理解为什么要这样写（算账逻辑）
+
+复式记账有一个铁律：一笔交易中，所有金额的加和必须等于 0（借贷平衡）。
+
+- **资产（Assets）**：你拥有的钱，增加记为正数（如 `5000`）。
+- **负债（Liabilities）**：你欠别人的钱，在 Beancount 中通常记为负数（如 `-1000`）。
+
+**计算你的净资产**：
+
+- 资产总额：$5000 + 2000 + 10000 = 17000$
+- 负债总额：$(-1000) + (-2000) = -3000$
+- 净资产（家底）：$17000 + (-3000) = 14000$
+
+**用权益账户（Equity）平账**：为了让整笔交易凑够 0，`Equity:Opening-Balances` 必须填入与净资产绝对值相等但符号相反的数，即 `-14000.00 CNY`。
+
+### 5. 保存并验证
+
+将这段代码保存到你的月度账本中。运行 Beancount 的语法检查（或通过你搭建的网页端 / Fava 查看）。如果没有报错，并且在资产负债表（Balance Sheet）中能看到正确的存款和负债，说明你的第一次期初记录大功告成！
+
+> ⚠️ **核心提醒**：这笔"初始建账"交易一生只需在第一次使用时写一次。在之后的日常买咖啡、发工资、网购中，绝对不要再把 `Equity:Opening-Balances` 写进去了。
+
+---
+
+## 五、进阶：配置 GitHub Actions 自动校验
 
 为了防止手机端提交不规范的账目导致语法崩溃，建议为仓库配置 GitHub Actions 自动化校验。
 
@@ -150,7 +259,7 @@ jobs:
 
 ---
 
-## 五、使用 Fava 构建可视化网页
+## 六、使用 Fava 构建可视化网页
 
 Fava 是官方推荐的现代化复式记账 Web 可视化看板。得益于 `main.bean` 中配置了通配符，你只需安装并运行它即可，无需任何额外的配置维护。
 
@@ -185,7 +294,7 @@ fava main.bean
 
 ---
 
-## 六、常见问题与注意事项 (FAQ)
+## 七、常见问题与注意事项 (FAQ)
 
 ### 1. 记账网页的分类标签和场景可以自定义吗？
 
@@ -193,11 +302,11 @@ fava main.bean
 
 ### 2. 为什么我在 GitHub 仓库里添加了新账户，前端没有显示？
 
-前端网页会在你验证密钥后自动读取 GitHub 根目录下 `accounts.bean` 里的账户定义。如果你中途在 GitHub 上修改了 `accounts.bean` 文件，只需刷新手机网页，或者在页面底部点击 **”🔄 刷新分析当前月份”** 按钮，系统就会重新拉取并更新最新的账户列表。
+前端网页会在你验证密钥后自动读取 GitHub 根目录下 `accounts.bean` 里的账户定义。如果你中途在 GitHub 上修改了 `accounts.bean` 文件，只需刷新手机网页，或者在页面底部点击 **"🔄 刷新分析当前月份"** 按钮，系统就会重新拉取并更新最新的账户列表。
 
 ### 3. 记账出现错误可以撤销吗？
 
-支持防手抖撤销。在提交一笔记账后，如果你发现填错了金额或选错了账户，可以在页面右上角点击 **”↩️ 撤销”** 按钮。系统会自动在当月流水文件中删除你刚刚提交的最后一笔记录。
+支持防手抖撤销。在提交一笔记账后，如果你发现填错了金额或选错了账户，可以在页面右上角点击 **"↩️ 撤销"** 按钮。系统会自动在当月流水文件中删除你刚刚提交的最后一笔记录。
 
 ### 4. 我的财务数据安全吗？
 
